@@ -2,9 +2,13 @@ import { Request, Response } from 'express';
 import mongoose from 'mongoose';
 import User from '../models/User.js';
 import DoctorProfile from '../models/DoctorProfile.js';
+import { cleanDoctorName } from '../utils/doctorName.js';
 
 // Admin only — creates both the User (role: doctor) and DoctorProfile in one step
-export const createDoctor = async (req: Request, res: Response): Promise<void> => {
+export const createDoctor = async (
+  req: Request,
+  res: Response,
+): Promise<void> => {
   try {
     const {
       name,
@@ -19,41 +23,68 @@ export const createDoctor = async (req: Request, res: Response): Promise<void> =
       availability,
     } = req.body;
 
-    if (!name || !email || !password || !specialty || !degree || fees === undefined) {
+    if (
+      !name ||
+      !email ||
+      !password ||
+      !specialty ||
+      !degree ||
+      fees === undefined
+    ) {
       res.status(400).json({
-        message: 'Name, email, password, specialty, degree, and fees are required',
+        message:
+          "Name, email, password, specialty, degree, and fees are required",
+      });
+      return;
+    }
+
+    // Clean "Dr", "Dr.", "Dr ." etc. from the beginning
+    const cleanedName = cleanDoctorName(name);
+
+    if (!cleanedName) {
+      res.status(400).json({
+        message: "Doctor name is required",
       });
       return;
     }
 
     const existingUser = await User.findOne({ email });
+
     if (existingUser) {
-      res.status(409).json({ message: 'An account with this email already exists' });
+      res.status(409).json({
+        message:
+          "An account with this email already exists",
+      });
       return;
     }
 
     const user = await User.create({
-      name,
+      name: cleanedName,
       email,
       password,
-      role: 'doctor',
+      role: "doctor",
       address,
     });
 
     try {
-      const doctorProfile = await DoctorProfile.create({
-        user: user._id,
-        specialty,
-        degree,
-        experienceYears: experienceYears || 0,
-        fees,
-        address,
-        about,
-        availability: availability || [],
-      });
+      const doctorProfile =
+        await DoctorProfile.create({
+          user: user._id,
+          specialty,
+          degree,
+          experienceYears:
+            experienceYears || 0,
+          fees,
+          address,
+          about,
+          availability:
+            availability || [],
+        });
 
       res.status(201).json({
-        message: 'Doctor created successfully',
+        message:
+          "Doctor created successfully",
+
         doctor: {
           id: user._id,
           name: user.name,
@@ -62,12 +93,19 @@ export const createDoctor = async (req: Request, res: Response): Promise<void> =
         },
       });
     } catch (profileError) {
-      // Roll back the user if profile creation fails, so we don't get an orphaned doctor account
-      await User.findByIdAndDelete(user._id);
+      // Roll back the user if profile creation fails,
+      // so we don't get an orphaned doctor account
+      await User.findByIdAndDelete(
+        user._id,
+      );
+
       throw profileError;
     }
   } catch (error) {
-    res.status(500).json({ message: 'Failed to create doctor', error: (error as Error).message });
+    res.status(500).json({
+      message: "Failed to create doctor",
+      error: (error as Error).message,
+    });
   }
 };
 
