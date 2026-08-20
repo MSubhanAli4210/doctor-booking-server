@@ -11,6 +11,7 @@ import appointmentRoutes from './routes/appointmentRoutes.js';
 import reviewRoutes from './routes/reviewRoutes.js';
 import uploadRoutes from './routes/uploadRoutes.js';
 import chatRoutes from './routes/chatRoutes.js';
+import adminRoutes from "./routes/adminRoutes.js";
 
 dotenv.config();
 
@@ -40,6 +41,7 @@ app.use('/api/appointments', appointmentRoutes);
 app.use('/api/reviews', reviewRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/chat', chatRoutes);
+app.use("/api/admin", adminRoutes);
 
 const PORT: number = Number(process.env.PORT) || 8080;
 
