@@ -43,9 +43,7 @@ const timeToMinutes = (
     return null;
   }
 
-  return (
-    hours * 60 + minutes
-  );
+  return hours * 60 + minutes;
 };
 
 export const bookAppointment =
@@ -702,6 +700,18 @@ export const updateAppointmentStatus =
         return;
       }
 
+      if (
+        !mongoose.Types.ObjectId.isValid(
+          appointmentId,
+        )
+      ) {
+        res.status(400).json({
+          message:
+            "Invalid appointment ID",
+        });
+        return;
+      }
+
       const appointment =
         await Appointment.findById(
           appointmentId,
@@ -734,6 +744,44 @@ export const updateAppointmentStatus =
         return;
       }
 
+      if (
+        appointment.status ===
+        "cancelled"
+      ) {
+        res.status(400).json({
+          message:
+            "Appointment is already cancelled",
+        });
+        return;
+      }
+
+      if (
+        appointment.status ===
+        "completed"
+      ) {
+        res.status(400).json({
+          message:
+            "Completed appointments cannot be changed",
+        });
+        return;
+      }
+
+      let refunded = false;
+
+      if (
+        status === "cancelled" &&
+        appointment.payment?.status ===
+          "paid"
+      ) {
+        appointment.payment.status =
+          "refunded";
+
+        appointment.payment.refundedAt =
+          new Date();
+
+        refunded = true;
+      }
+
       appointment.status =
         status;
 
@@ -747,12 +795,18 @@ export const updateAppointmentStatus =
             appointment._id,
           status:
             appointment.status,
+          paymentStatus:
+            appointment.payment?.status,
+          refunded,
         },
       );
 
       res.status(200).json({
-        message: `Appointment marked as ${status}`,
+        message: refunded
+          ? "Appointment cancelled and payment refunded"
+          : `Appointment marked as ${status}`,
         appointment,
+        refunded,
       });
     } catch (error) {
       res.status(500).json({

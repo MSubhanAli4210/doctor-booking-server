@@ -618,3 +618,77 @@ export const getOnlineStatus =
       });
     }
   };
+
+  export const markConversationRead = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    if (!req.userId) {
+      res.status(401).json({ message: "Unauthorized" });
+      return;
+    }
+
+    const conversationId =
+      req.params.conversationId as string;
+
+    if (!mongoose.Types.ObjectId.isValid(conversationId)) {
+      res.status(400).json({
+        message: "Invalid conversation ID",
+      });
+      return;
+    }
+
+    const conversation =
+      await Conversation.findById(conversationId);
+
+    if (!conversation) {
+      res.status(404).json({
+        message: "Conversation not found",
+      });
+      return;
+    }
+
+    const doctorProfile =
+      await DoctorProfile.findById(conversation.doctor);
+
+    if (!doctorProfile) {
+      res.status(404).json({
+        message: "Doctor profile not found",
+      });
+      return;
+    }
+
+    const isParticipant =
+      conversation.patient.toString() === req.userId ||
+      doctorProfile.user.toString() === req.userId;
+
+    if (!isParticipant) {
+      res.status(403).json({
+        message: "You do not have access to this conversation",
+      });
+      return;
+    }
+
+    const result = await Message.updateMany(
+      {
+        conversation: conversationId,
+        sender: { $ne: req.userId },
+        read: false,
+      },
+      {
+        $set: { read: true },
+      }
+    );
+
+    res.status(200).json({
+      message: "Conversation marked as read",
+      updatedCount: result.modifiedCount,
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: "Failed to mark conversation as read",
+      error: (error as Error).message,
+    });
+  }
+};
