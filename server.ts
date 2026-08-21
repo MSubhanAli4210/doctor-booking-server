@@ -4,7 +4,6 @@ import dotenv from "dotenv";
 import cors from "cors";
 import connectDB from "./config/db.js";
 import { initSocket } from "./socket.js";
-
 import authRoutes from "./routes/authRoutes.js";
 import doctorRoutes from "./routes/doctorRoutes.js";
 import appointmentRoutes from "./routes/appointmentRoutes.js";
@@ -18,14 +17,40 @@ dotenv.config();
 const app: Application = express();
 const httpServer = createServer(app);
 
+const clientUrl = process.env.CLIENT_URL
+  ?.replace(/^["']|["']$/g, "")
+  .replace(/\/$/, "");
+
 const allowedOrigins: string[] = [
   "http://localhost:5173",
-  ...(process.env.CLIENT_URL ? [process.env.CLIENT_URL] : []),
+  ...(clientUrl ? [clientUrl] : []),
 ];
+
+const vercelOriginPattern =
+  /^https:\/\/doctor-booking-client(?:-[a-z0-9-]+)?\.vercel\.app$/;
+
+const isAllowedOrigin = (origin?: string) => {
+  if (!origin) {
+    return true;
+  }
+
+  if (allowedOrigins.includes(origin)) {
+    return true;
+  }
+
+  return vercelOriginPattern.test(origin);
+};
 
 app.use(
   cors({
-    origin: allowedOrigins,
+    origin: (origin, callback) => {
+      if (isAllowedOrigin(origin)) {
+        callback(null, true);
+        return;
+      }
+
+      callback(new Error("Not allowed by CORS"));
+    },
     credentials: true,
   }),
 );
@@ -33,6 +58,7 @@ app.use(
 app.use(express.json());
 
 connectDB();
+
 initSocket(httpServer, allowedOrigins);
 
 app.get("/", (req, res) => {
